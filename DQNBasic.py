@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 import cv2
-from environment import Environment
+from environmentBasic import Environment
 import rospy, tf
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import *
@@ -23,12 +23,12 @@ class NeuralNetwork(nn.Module):
     def __init__(self):
         super(NeuralNetwork, self).__init__()
         self.number_of_actions =5
-        self.gamma = 0.4
+        self.gamma = 0.5
         self.final_epsilon = 0.05 # 0.0001
         self.initial_epsilon = 1# 0.1
         self.number_of_iterations = 250#10000
         self.replay_memory_size = 1000000
-        self.minibatch_size = 32
+        self.minibatch_size = 16
         #4 frames, 32 chann out,, 8x8kernel, stride 4
         self.conv1 = nn.Conv2d(4 , 30, 8, 4)
         self.relu1 = nn.ReLU(inplace=True)
@@ -100,59 +100,117 @@ def image_to_tensor(image):
 #     return image_data
 
 def resize_and_bgr2gray(image,game_state):
-    # image = image[0:288, 0:404]
-    # cv2.imshow("Camera view diff", image)#
+    # # image = image[0:288, 0:404]
+    # # cv2.imshow("Camera view diff", image)#
+    # # cv2.waitKey(3)
+    # image = cv2.resize(image, (84, 84))
+    #
+    #
+    # newimage = np.zeros((85,84))
+    # # BGR form
+    # for x in range(0,len(image)-1):
+    #     for y in range(0,len(image[x])):
+    #         # if image[x][y][0]>=255:#if blue
+    #         #     newimage[x][y] = 10
+    #         # elif image[x][y][1]>=255:#green
+    #         #     newimage[x][y] = 10
+    #
+    #         if image[x][y][2]>image[x][y][0] and image[x][y][2]>image[x][y][1]: #red
+    #             newimage[x][y] = 0.1#*(image[x][y][2]/(image[x][y][2]+image[x][y][1]+image[x][y][0]))
+    #             # print("r")
+    #         elif image[x][y][1]>image[x][y][0] and image[x][y][1]>image[x][y][2]:#green
+    #             newimage[x][y]=255
+    #             # print("g")
+    #             # print("g")
+    #         elif image[x][y][0]>image[x][y][1] and image[x][y][0]>image[x][y][2]:#blue
+    #             newimage[x][y]=0.5
+    #             # print("b")
+    #         else:
+    #             newimage[x][y] = 0
+    #
+    #         # elif image[x][y][0]<=50 and image[x][y][1]<=50 and image[x][y][2]<=50: #make black
+    #         #     newimage[x][y] = 10
+    # image_data = newimage
+    # rawLaser = list(game_state.laserData)
+    # for i in range(0,len(rawLaser)):
+    #     if rawLaser[i]==np.inf:
+    #         rawLaser[i] = 10
+    #     rawLaser[i] = (round(rawLaser[i],1)/10)
+    #
+    #     # if rawLaser[i]>0.5:
+    #     #     rawLaser[i] = 1
+    #     # else:
+    #     #     rawLaser[i] = 0
+    #
+    # image_data[-1] = rawLaser
+    # # print(rawLaser)
+    # image_data = np.reshape(image_data, (85, 84, 1))
+    # cv2.imshow("Camera view diff", newimage)#
     # cv2.waitKey(3)
-    image = cv2.resize(image, (84, 84))
+    # return image_data
 
 
-    newimage = np.zeros((85,84))
-    # BGR form
-    for x in range(0,len(image)-1):
-        for y in range(0,len(image[x])):
-            # if image[x][y][0]>=255:#if blue
-            #     newimage[x][y] = 10
-            # elif image[x][y][1]>=255:#green
-            #     newimage[x][y] = 10
 
-            if image[x][y][2]>image[x][y][0] and image[x][y][2]>image[x][y][1]: #red
-                newimage[x][y] = 0.1#*(image[x][y][2]/(image[x][y][2]+image[x][y][1]+image[x][y][0]))
-                # print("r")
-            elif image[x][y][1]>image[x][y][0] and image[x][y][1]>image[x][y][2]:#green
-                newimage[x][y]=255
-                # print("g")
-                # print("g")
-            elif image[x][y][0]>image[x][y][1] and image[x][y][0]>image[x][y][2]:#blue
-                newimage[x][y]=0.5
-                # print("b")
-            else:
-                newimage[x][y] = 0
+	# image = image[0:288, 0:404]
+	# cv2.imshow("Camera view diff", image)#
+	# cv2.waitKey(3)
+	# image = cv2.resize(image, (84, 84))
+	#check for green and makes white so in conversion it is brightest colour
+	for x in range(0,len(image)-1):
+		for y in range(0,len(image[x])):
+			if image[x][y][1]>image[x][y][0] and image[x][y][1]>image[x][y][2]:#green
+				image[x][y][0]=255
+				image[x][y][1]=255
+				image[x][y][2]=255
+	image = cv2.cvtColor(cv2.resize(image, (84, 84)), cv2.COLOR_BGR2GRAY)
 
-            # elif image[x][y][0]<=50 and image[x][y][1]<=50 and image[x][y][2]<=50: #make black
-            #     newimage[x][y] = 10
-    image_data = newimage
-    rawLaser = list(game_state.laserData)
-    for i in range(0,len(rawLaser)):
-        if rawLaser[i]==np.inf:
-            rawLaser[i] = 10
-        rawLaser[i] = (round(rawLaser[i],1)/10)
+	newimage = np.zeros((85,84))
+	# BGR form
+	for x in range(0,len(image)-1):
+		for y in range(0,len(image[x])):
+			newimage[x][y] = image[x][y]/255
+			# # if image[x][y][0]>=255:#if blue
+			# #     newimage[x][y] = 10
+			# # elif image[x][y][1]>=255:#green
+			# #     newimage[x][y] = 10
+			#
+			# if image[x][y][2]>image[x][y][0] and image[x][y][2]>image[x][y][1]: #red
+			# 	newimage[x][y] = 0.1#*(image[x][y][2]/(image[x][y][2]+image[x][y][1]+image[x][y][0]))
+			# 	# print("r")
+			# elif image[x][y][1]>image[x][y][0] and image[x][y][1]>image[x][y][2]:#green
+			# 	newimage[x][y]=255
+			# 	# print("g")
+			# 	# print("g")
+			# elif image[x][y][0]>image[x][y][1] and image[x][y][0]>image[x][y][2]:#blue
+			# 	newimage[x][y]=0.5
+			# 	# print("b")
+			# else:
+			# 	newimage[x][y] = 0
 
-        # if rawLaser[i]>0.5:
-        #     rawLaser[i] = 1
-        # else:
-        #     rawLaser[i] = 0
+	image_data = newimage
+	rawLaser = list(game_state.laserData)
+	for i in range(0,len(rawLaser)):
+		if rawLaser[i]==np.inf:
+			rawLaser[i] = 10
+		rawLaser[i] = round(rawLaser[i],1)
 
-    image_data[-1] = rawLaser
-    # print(rawLaser)
-    image_data = np.reshape(image_data, (85, 84, 1))
-    cv2.imshow("Camera view diff", newimage)#
-    cv2.waitKey(3)
-    return image_data
+		# if rawLaser[i]>0.5:
+		#     rawLaser[i] = 1
+		# else:
+		#     rawLaser[i] = 0
+
+	image_data[-1] = rawLaser
+	# print(rawLaser)
+	image_data = np.reshape(image_data, (85, 84, 1))
+	cv2.imshow("Camera view diff", newimage)#
+	cv2.waitKey(3)
+	return image_data
 
 
 def train(model, start):
     # define Adam optimizer
-    optimizer = optim.Adam(model.parameters(), lr=0.00015)#0.0025)
+    learningrate = 0.000025
+    optimizer = optim.Adam(model.parameters(), lr=learningrate)#0.0025)
     # initialize mean squared error loss
     criterion = nn.MSELoss()
     # instantiate game
@@ -176,13 +234,17 @@ def train(model, start):
 
     # initialize epsilon value
     epsilon = model.initial_epsilon
-    iteration = 0
+    episode = 0
 
     epsilon_decrements = np.linspace(model.initial_epsilon, model.final_epsilon, model.number_of_iterations)
     taken = [0,0]
-    fails = 1
+    PrevEpisodeReward =-1000
+    CurrentEpisodeReward = 0
+    fails=1
+    EPSDECAY = model.initial_epsilon
+
     # main infinite loop
-    while iteration < model.number_of_iterations:
+    while episode < model.number_of_iterations:
         # get output from the neural network
         output = model(state)[0]
 
@@ -211,30 +273,20 @@ def train(model, start):
         if len(replay_memory) > model.replay_memory_size:
             replay_memory.pop(0)
         # epsilon annealing
-        # epsilon = epsilon_decrements[iteration]
+        # epsilon = epsilon_decrements[episode]
+        # epsilon*=(0.99)
+        print("REWARDS")
+        print(PrevEpisodeReward,float(CurrentEpisodeReward))
 
-        epsilon*=(0.99)
-        # print(iteration+1,taken[iteration+1]+1,taken[0]+1,fails)
-        # epsilon*=(0.975**(0.05*(  ((iteration+1)/((taken[iteration+1]+1)/(taken[0]+1))) /fails)))
-        #
-        # if taken[iteration+1]%10==0:
-        #     if (iteration+(taken[iteration+1]/10)) <len(epsilon_decrements):
-        #         epsilon = epsilon_decrements[int(iteration+(taken[iteration+1]/10)) ]
-        #     if taken[iteration+1]%100 == 0:
-        #         # game_state.resetTarget()
-        #         if epsilon<=model.final_epsilon:
-        #                 #policy cant find in 100 steps. so try again with less initial randomness
-        #             if (iteration+(taken[iteration+1]/100) )<len(epsilon_decrements):
-        #                 epsilon = epsilon_decrements[int(iteration+(taken[iteration+1]/100)) ]
-        #                 game_state.resetRobot()
-        #             else:
-        #                 epsilon = epsilon_decrements[iteration-1]
-        #                 game_state.resetTarget()
-        #                 game_state.resetRobot()
-        #         else:
-        #                 epsilon = epsilon_decrements[iteration-1]
-        #                 game_state.resetTarget()
-        #                 # game_state.resetRobot()
+
+        EPSRatio = CurrentEpisodeReward/(fails*PrevEpisodeReward)
+        if EPSRatio>=1:
+            fails+=1
+            EPSRatio = CurrentEpisodeReward/(fails*10*PrevEpisodeReward)
+
+        epsilon= convertRange(EPSRatio,0,1,epsilon_decrements[episode],model.final_epsilon)
+
+        CurrentEpisodeReward+=float(reward)
 
 
         # sample random minibatch
@@ -264,30 +316,30 @@ def train(model, start):
         # set state to be state_1
         state = state_1
         # if reward>=50:
-        #     iteration += 1
+        #     episode += 1
         #     taken.append(0)
         #     fails = 1
-        #     epsilon = epsilon_decrements[iteration]
+        #     epsilon = epsilon_decrements[episode]
         #     game_state.actionsTaken = 0
-
         if terminal:
-            if reward<0:
-                fails+=1
-            elif reward>=10:
-                iteration += 1
+
+            if reward>=10:
+                fails=1
+                episode += 1
                 taken.append(0)
-                fails = 1
-                epsilon = epsilon_decrements[iteration]
+                PrevEpisodeReward = CurrentEpisodeReward
+                CurrentEpisodeReward = 0
+                epsilon = epsilon_decrements[episode]
                 game_state.actionsTaken = 0
 
         taken[0]+=1
-        taken[iteration+1]+=1
+        taken[episode+1]+=1
 
-        if iteration % 5 == 0:
-            name = str(model.gamma)+"_"+str(model.final_epsilon)+"_"+str(model.initial_epsilon)+"_"+str(model.number_of_iterations)+"_"+str(model.replay_memory_size)+"_"+str(model.minibatch_size)+"_"
-            torch.save(model, "/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/"+name + str(iteration) + ".pth")
+        if episode % 5 == 0:
+            name = str(model.gamma)+"_"+str(model.final_epsilon)+"_"+str(model.initial_epsilon)+"_"+str(model.number_of_iterations)+"_"+str(learningrate)+"_"+str(model.minibatch_size)+"_"
+            torch.save(model, "/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/"+name + str(episode) + ".pth")
         print()
-        print("\nIteration:", iteration,"\nfailed:",fails,"\nactionsPerIteration:",taken, "\nTraining Time:", time.time() - start, "\nEpsilon:", epsilon, "\nEPSDecay:",str((0.99**(0.05*(  ((iteration+1)/((taken[iteration+1]+1)/(taken[0]+1))) /fails)))),"\nAction:",
+        print("\nEpisode:", episode,"\nactionsPerEpisode:",taken, "\nTraining Time:", time.time() - start, "\nEpsilon:", epsilon,"\nAction:",
               action_index.cpu().detach().numpy(), "\nreward:", reward.numpy()[0][0], "\nQ max:",
               np.max(output.cpu().detach().numpy()))
 
@@ -331,6 +383,17 @@ def test(model):
         # set state to be state_1
         state = state_1
 
+def convertRange(value, leftMin, leftMax, rightMin, rightMax):
+    # Figure out how 'wide' each range is
+    leftSpan = leftMax - leftMin
+    rightSpan = rightMax - rightMin
+
+    # Convert the left range into a 0-1 range (float)
+    valueScaled = float(value - leftMin) / float(leftSpan)
+
+    # Convert the 0-1 range into a value in the right range.
+    return rightMin + (valueScaled * rightSpan)
+
 def main(mode):
     cuda_is_available = torch.cuda.is_available()
     if mode == 'test':
@@ -357,19 +420,19 @@ def main(mode):
     elif mode == "load":
         models = glob.glob("/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/*.pth")
         latest = max(models,key=os.path.getctime)
-        # latest = "/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/best-nolaser-0.5_0.01_0.1_500_1000000_16_310.pth"
+        # latest = "/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/best-laser-0.5_0.01_0.5_100_1000000_16_95.pth"
         print(latest)
         model = torch.load(
             latest,
             map_location='cpu' if not cuda_is_available else None
         )
-        model.number_of_actions =5
+        # model.number_of_actions =5
         model.gamma = 0.5
-        model.final_epsilon = 0.01 # 0.0001
+        model.final_epsilon = 0.05 # 0.0001
         model.initial_epsilon = 0.5# 0.1
-        model.number_of_iterations = 100#10000
-        model.replay_memory_size = 1000000
-        model.minibatch_size = 64
+        model.number_of_iterations = 105#10000
+        # model.replay_memory_size = 1000000
+        # model.minibatch_size = 100
 
         start = time.time()
         train(model, start)

@@ -22,10 +22,10 @@ class NeuralNetwork(nn.Module):
 		self.number_of_actions =5
 		self.gamma = 0.9
 		self.final_epsilon = 0.05 # 0.0001
-		self.initial_epsilon = 0.99# 0.1
+		self.initial_epsilon = 1# 0.1
 		self.number_of_iterations = 150#10000
 		self.replay_memory_size = 100000000
-		self.minibatch_size = 128
+		self.minibatch_size = 32
 		#4 frames, 32 chann out,, 8x8kernel, stride 4
 		self.conv1 = nn.Conv2d(4 , 16, 8, 4)
 		self.relu1 = nn.ReLU(inplace=True)
@@ -122,7 +122,7 @@ def resize_and_bgr2gray(image,game_state):
 
 def train(model, start):
 	# define Adam optimizer
-	optimizer = optim.Adam(model.parameters(), lr=0.0002)#0.0025)
+	optimizer = optim.Adam(model.parameters(), lr=0.0000015)#0.0025)
 	# initialize mean squared error loss
 	criterion = nn.MSELoss()
 	# instantiate game
@@ -147,7 +147,8 @@ def train(model, start):
 	# initialize epsilon value
 	epsilon = model.initial_epsilon
 	Episode = 0
-
+	PrevEpisodeReward = -1000
+	CurrentEpisodeReward = 0
 	epsilon_decrements = np.linspace(model.initial_epsilon, model.final_epsilon, model.number_of_iterations)
 	taken = [0,0]
 	fails = 1
@@ -180,33 +181,44 @@ def train(model, start):
 		# if replay memory is full, remove the oldest transition
 		if len(replay_memory) > model.replay_memory_size:
 			replay_memory.pop(0)
+
+
+
 		# epsilon annealing
 		# epsilon = epsilon_decrements[Episode]
-
 		# epsilon*=(0.99)
-		# print(Episode+1,taken[Episode+1]+1,taken[0]+1,fails)
-		epsilon*=(0.99**(0.05*(  ((Episode+1)/((taken[Episode+1]+1)/(taken[0]+1))) /fails)))
+		# # epsilon*=(0.99**(0.05*(  ((Episode+1)/((taken[Episode+1]+1)/(taken[0]+1))) /fails)))
+		# if taken[Episode+1]%10==0:
+		# 	if (Episode+(taken[Episode+1]/10)) <len(epsilon_decrements):
+		# 		epsilon = epsilon_decrements[int(Episode+(taken[Episode+1]/10)) ]
+		# 	if taken[Episode+1]%100 == 0:
+		# 		if epsilon<=model.final_epsilon:
+		# 			game_state.resetTarget()
+		# 				#policy cant find in 100 steps. so try again with less initial randomness
+		# 			if (Episode+(taken[Episode+1]/100) )<len(epsilon_decrements):
+		# 				epsilon = epsilon_decrements[int(Episode+(taken[Episode+1]/100)) ]
+		# 				game_state.resetRobot()
+		# 			else:
+		# 				epsilon = epsilon_decrements[Episode-1]
+		# 				# for i in range(0,len(game_state.X)):
+		# 				#     game_state.resetTarget(i)
+		# 				game_state.resetRobot()
+		# 		else:
+		# 				epsilon = epsilon_decrements[Episode-1]
+		# 				# game_state.resetTarget()
+		# 				# game_state.resetRobot()
+		#
+		print("REWARDS")
+		print(PrevEpisodeReward,float(CurrentEpisodeReward))
 
-		if taken[Episode+1]%10==0:
-			if (Episode+(taken[Episode+1]/10)) <len(epsilon_decrements):
-				epsilon = epsilon_decrements[int(Episode+(taken[Episode+1]/10)) ]
-			if taken[Episode+1]%100 == 0:
-				# game_state.resetTarget()
-				if epsilon<=model.final_epsilon:
-					game_state.resetTarget()
-						#policy cant find in 100 steps. so try again with less initial randomness
-					if (Episode+(taken[Episode+1]/100) )<len(epsilon_decrements):
-						epsilon = epsilon_decrements[int(Episode+(taken[Episode+1]/100)) ]
-						game_state.resetRobot()
-					else:
-						epsilon = epsilon_decrements[Episode-1]
-						# for i in range(0,len(game_state.X)):
-						#     game_state.resetTarget(i)
-						game_state.resetRobot()
-				else:
-						epsilon = epsilon_decrements[Episode-1]
-						# game_state.resetTarget()
-						# game_state.resetRobot()
+
+		EPSRatio = CurrentEpisodeReward/(fails*PrevEpisodeReward)
+		if EPSRatio>=1:
+			fails+=1
+			EPSRatio = CurrentEpisodeReward/(fails*10*PrevEpisodeReward)
+		epsilon= convertRange(EPSRatio,0,1,epsilon_decrements[Episode],model.final_epsilon)
+		CurrentEpisodeReward+=float(reward)
+
 
 
 		# sample random minibatch
@@ -236,12 +248,12 @@ def train(model, start):
 		# set state to be state_1
 		state = state_1
 		if terminal:
-			if reward<0:
-				fails+=1
-				if fails>100:
-					fails=1
-					epsilon = 0.3
-			elif reward>=100:
+			# if reward<0:
+				# fails+=1
+				# if fails>100:
+				# 	fails=1
+				# 	epsilon = 0.3
+			if reward>=100:
 				Episode += 1
 				taken.append(0)
 				fails = 1
@@ -254,7 +266,7 @@ def train(model, start):
 		taken[0]+=1
 		taken[Episode+1]+=1
 
-		if Episode % 10 == 0:
+		if Episode % 5 == 0:
 			name = str(model.gamma)+"_"+str(model.final_epsilon)+"_"+str(model.initial_epsilon)+"_"+str(model.number_of_iterations)+"_"+str(model.replay_memory_size)+"_"+str(model.minibatch_size)+"_"
 			torch.save(model, "/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/"+name + str(Episode) + ".pth")
 		print()
@@ -263,6 +275,16 @@ def train(model, start):
 			  np.max(output.cpu().detach().numpy()))
 
 
+def convertRange(value, leftMin, leftMax, rightMin, rightMax):
+    # Figure out how 'wide' each range is
+    leftSpan = leftMax - leftMin
+    rightSpan = rightMax - rightMin
+
+    # Convert the left range into a 0-1 range (float)
+    valueScaled = float(value - leftMin) / float(leftSpan)
+
+    # Convert the 0-1 range into a value in the right range.
+    return rightMin + (valueScaled * rightSpan)
 def test(model):
 	game_state = Environment()
 	rate = rospy.Rate(1)
@@ -334,8 +356,8 @@ def main(mode):
 			map_location='cpu' if not cuda_is_available else None
 		)
 		# model.number_of_actions =5
-		model.gamma = 0.9
-		model.initial_epsilon = 0.7# 0.1
+		# model.gamma = 0.1
+		model.initial_epsilon = 0.8# 0.1
 		model.final_epsilon = 0.05 # 0.0001
 		model.number_of_iterations = 150 #10000
 		# model.replay_memory_size = 10000000

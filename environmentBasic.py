@@ -37,6 +37,7 @@ class Environment():
 		self.prevTime = 999999
 		self.stuck = False
 		self.actionsTaken = 0
+		self.inSight = False
 		self.resetRobot()
 		self.resetTarget()
 
@@ -68,8 +69,8 @@ class Environment():
 		state_msg.pose.position.z = 0.1
 		state_msg.pose.orientation.x = 0
 		state_msg.pose.orientation.y = 0
-		state_msg.pose.orientation.z = 0
-		state_msg.pose.orientation.w = 0
+		state_msg.pose.orientation.z = random.randint(0,1)
+		state_msg.pose.orientation.w = random.randint(0,1)
 		rospy.wait_for_service('/gazebo/set_model_state')
 		try:
 			set_state = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
@@ -98,7 +99,8 @@ class Environment():
 		  cv_image = bridge.imgmsg_to_cv2(image, "passthrough")
 		except CvBridgeError:
 		  rospy.logerr("CvBridge Error")
-		self.State.append(np.uint8(cv2.flip(cv_image,1)))
+		self.State.append(cv2.resize(np.uint8(cv2.flip(cv_image,1)), (84, 84)))#resize and flip image
+
 
 	def setPos(self,position):
 		self.prevPos = self.pos
@@ -134,10 +136,10 @@ class Environment():
 		rate = rospy.Rate(1)
 
 		action = ((action == 1).nonzero(as_tuple=True)[0])
-		move.linear.x = 0.25
+		move.linear.x = 0.15
 		if action==torch.Tensor([0]):
-			move.angular.z = -0.35
-			move.linear.x = 0
+			move.angular.z = -0.45
+			# move.linear.x = 0
 		elif action==torch.Tensor([1]):
 			move.angular.z = -0.25
 		elif action==torch.Tensor([2]):
@@ -146,8 +148,8 @@ class Environment():
 		elif action==torch.Tensor([3]):
 			move.angular.z = 0.25
 		elif action==torch.Tensor([4]):
-			move.angular.z = 0.35
-			move.linear.x = 0
+			move.angular.z = 0.45
+			# move.linear.x = 0
 		# move.linear.x = 0.1
 		self.Pub.publish(move)
 		rate.sleep()
@@ -160,7 +162,7 @@ class Environment():
 			self.actionsTaken  =0
 		# # if elapsed>=self.maxTime:
 			self.resetRobot()
-			self.resetTarget()
+			# self.resetTarget()
 			self.startTime = time.time()
 			self.State = []
 			self.Found[-1]-=1
@@ -170,26 +172,15 @@ class Environment():
 		action = torch.argmax(action)
 		self.Found[1] = self.actionsTaken
 		print(self.Found)
-		#
-		# mid = len(self.State)//2
-		# first = self.State[0]
-		# second = self.State[mid]
-		# for i in range(1,mid,3):
-		# 	first+=self.State[i]
-		# for i in range(mid+1,len(self.State),3):
-		# 	second+=self.State[i]
-		# difference = second-first
-		# difference = self.State[0]-self.State[-1]
-		difference = self.State[-1]
-		# difference = self.State[0]
-		# for i in range(1,len(self.State),5):
-			# difference+=self.State[i]
 
+		difference = self.State[-1]
 		self.State = []
+
 		angle = self.getAngleToTarget()
 		if (self.X-0.175 <= self.pos.x <= self.X+0.175)and (self.Y-0.175 <= self.pos.y <= self.Y+0.175):
 			self.stuck=False
 			self.Found[0]+=1
+			self.actionsTaken  =0
 			self.prevTime = elapsed
 			print()
 			print("FOUND ITT")
@@ -198,28 +189,36 @@ class Environment():
 			# self.resetRobot()
 			return difference,100,True
 		for item in self.laserData:
-			if item<=0.25:
+			if item<=0.175:
 				self.Found[-2]-=1
+				self.actionsTaken  =0
 				self.startTime = time.time()
 				# self.resetTarget()
 				self.resetRobot()
 				self.State = []
-				return difference,-999,True
-		if angle<20:
-			try:
-				distance = ((((self.X - self.pos.x )**2) + ((self.Y-self.pos.y)**2) )**0.5)
-				Reward = (distance-2)**2
-				Reward+= ((0.1*angle)-2)**2
-				Reward/=5
-				if abs(angle)<=abs(self.prevAngle):
-					Reward*=2
-				self.prevAngle = abs(angle)
-				return difference,Reward,False
-			except:
-				return difference,0,False
-		Reward=-1
-		self.prevAngle = abs(angle)
-		return difference,Reward,False
+				return difference,-100,True
+
+		image = difference
+		self.inSight = False
+		for x in range(0,len(image)-1):
+			for y in range(0,len(image[x])):
+				if image[x][y][1]>image[x][y][0] and image[x][y][1]>image[x][y][2]:#green
+					self.inSight = True
+		if self.inSight:
+			angle = convertRange(angle,0,180,0,-1) #angle mapped to -1(180 deg) to 1(0deg)
+			distance = convertRange(((((self.X- self.pos.x )**2) + ((self.Y-self.pos.y)**2) )**0.5),0,4,0,-1)
+			Reward = (0.5*angle)+(0.5*distance)
+			self.prevAngle = abs(angle)
+			if angle<=self.prevAngle:
+				Reward/=2
+			else:
+				Reward*=2
+			return difference,Reward,False
+		else:
+			return difference,-1,False
+			# Reward=-1
+			# self.prevAngle = abs(angle)
+			# return difference,Reward,False
 
 		# if self.prevPos==self.pos:
 		# 	if action==torch.Tensor([2])or action==torch.Tensor([3]) or action==torch.Tensor([1]):
@@ -241,5 +240,18 @@ class Environment():
 
 def roundSig(num,sig):
 	return round(num, sig-int(floor(log10(abs(num))))-1)
+
+def convertRange(value, leftMin, leftMax, rightMin, rightMax):
+	# Figure out how 'wide' each range is
+	leftSpan = leftMax - leftMin
+	rightSpan = rightMax - rightMin
+
+	# Convert the left range into a 0-1 range (float)
+	if leftSpan>0:
+		valueScaled = float(value - leftMin) / float(leftSpan)
+		# Convert the 0-1 range into a value in the right range.
+		return rightMin + (valueScaled * rightSpan)
+	else:
+		return 0.5
 
 bridge = CvBridge()
