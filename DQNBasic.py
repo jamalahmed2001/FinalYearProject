@@ -238,7 +238,7 @@ def train(model, start):
 
     epsilon_decrements = np.linspace(model.initial_epsilon, model.final_epsilon, model.number_of_iterations)
     taken = [0,0]
-    PrevEpisodeReward =-1000
+    PrevEpisodeReward =[-1000]
     CurrentEpisodeReward = 0
     fails=1
     EPSDECAY = model.initial_epsilon
@@ -278,13 +278,15 @@ def train(model, start):
         print("REWARDS")
         print(PrevEpisodeReward,float(CurrentEpisodeReward))
 
-
-        EPSRatio = CurrentEpisodeReward/(fails*PrevEpisodeReward)
+        EPSRatio = abs(CurrentEpisodeReward/(fails*10*PrevEpisodeReward[episode]))
+        #eps ratio goes negative when prev is positive
+        # EPSRatio = abs(CurrentEpisodeReward-abs(fails*PrevEpisodeReward[episode])/PrevEpisodeReward[episode]))
         if EPSRatio>=1:
             fails+=1
-            EPSRatio = CurrentEpisodeReward/(fails*10*PrevEpisodeReward)
-
+            # EPSRatio = abs(CurrentEpisodeReward-abs(fails*PrevEpisodeReward[episode])/PrevEpisodeReward[episode]))
+            EPSRatio = abs(CurrentEpisodeReward/(fails*10*PrevEpisodeReward[episode]))
         epsilon= convertRange(EPSRatio,0,1,epsilon_decrements[episode],model.final_epsilon)
+        print("EPSRATIO - ", EPSRatio)
 
         CurrentEpisodeReward+=float(reward)
 
@@ -327,7 +329,7 @@ def train(model, start):
                 fails=1
                 episode += 1
                 taken.append(0)
-                PrevEpisodeReward = CurrentEpisodeReward
+                PrevEpisodeReward.append(CurrentEpisodeReward)
                 CurrentEpisodeReward = 0
                 epsilon = epsilon_decrements[episode]
                 game_state.actionsTaken = 0
@@ -336,6 +338,9 @@ def train(model, start):
         taken[episode+1]+=1
 
         if episode % 5 == 0:
+            name = str(model.gamma)+"_"+str(model.final_epsilon)+"_"+str(model.initial_epsilon)+"_"+str(model.number_of_iterations)+"_"+str(learningrate)+"_"+str(model.minibatch_size)+"_"
+            torch.save(model, "/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/"+name + str(episode) + ".pth")
+        elif PrevEpisodeReward[episode-1]>0:
             name = str(model.gamma)+"_"+str(model.final_epsilon)+"_"+str(model.initial_epsilon)+"_"+str(model.number_of_iterations)+"_"+str(learningrate)+"_"+str(model.minibatch_size)+"_"
             torch.save(model, "/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/"+name + str(episode) + ".pth")
         print()
@@ -429,7 +434,7 @@ def main(mode):
         # model.number_of_actions =5
         model.gamma = 0.5
         model.final_epsilon = 0.05 # 0.0001
-        model.initial_epsilon = 0.5# 0.1
+        model.initial_epsilon = 0.3# 0.1
         model.number_of_iterations = 105#10000
         # model.replay_memory_size = 1000000
         # model.minibatch_size = 100
