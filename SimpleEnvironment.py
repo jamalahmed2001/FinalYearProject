@@ -24,11 +24,10 @@ class Environment():
 	def __init__(self):
 		# self.X = [2,-2,-2,2,0,-2,-1.5,1,2,2,-1,1]
 		# self.Y = [2,-2,2,-2,-2,-1,1,0.5,0.5,1,0,-1.5]
-		self.targetPositions = [[random.uniform(-2,2),random.uniform(-2,2)]]
-		for i in range(0,20):
-			self.targetPositions.append([random.uniform(-2,2),random.uniform(-2,2)])
-		# self.targetPositions = [ [random.uniform(-1.5,1.5),random.uniform(-1.5,1.5)], [random.uniform(-1.5,1.5),random.uniform(-1.5,1.5)],[random.uniform(-1.5,1.5),random.uniform(-1.5,1.5)], [random.uniform(-1.5,1.5),random.uniform(-1.5,1.5)], [random.uniform(-1.5,1.5),random.uniform(-1.5,1.5)], [random.uniform(-1.5,1.5),random.uniform(-1.5,1.5)], [random.uniform(-1.5,1.5),random.uniform(-1.5,1.5)], [random.uniform(-1.5,1.5),random.uniform(-1.5,1.5)]]
-		# self.targetPositions = [ [1.5,2], [-1,0],[1.5,-1], [0,3] ,[4,3],[4,-3],[-3,4],[-2,-4],[-4,4]] #10x10
+		# self.targetPositions = [[random.uniform(-2,2),random.uniform(-2,2)]]
+		# for i in range(0,20):
+		# 	self.targetPositions.append([random.uniform(-2,2),random.uniform(-2,2)])
+		self.targetPositions = [ [1.5,2], [-1,0],[1.5,-1], [0,3] ,[4,3],[4,-3],[-3,4],[-2,-4],[-4,4]] #10x10
 		# self.targetPositions = [ [1,1], [-1,0],[2,-2], [2,2] ,[-2,-2],[-2,2],[-2,-1],[-2,1],[0.5,1.5]] #plaza
 		# self.targetPositions = [ [-6.5,-2], [-6.5,3],[-1,4], [-4,1] ,[1,3],[4,1],[6,1],[6.5,-1.5],[2,0.5]] #flat
 		self.targetIndex = 0
@@ -168,7 +167,7 @@ class Environment():
 		elapsed = time.time()-self.startTime
 		print("T.S.L - " + str(elapsed))
 		print("Prev Time - ", str(self.prevTime))
-		if self.actionsTaken>=60:
+		if self.actionsTaken>=200:
 			self.actionsTaken  =0
 		# # # if elapsed>=self.maxTime:
 			self.resetRobot()
@@ -204,9 +203,9 @@ class Environment():
 				self.actionsTaken  =0
 				self.startTime = time.time()
 				# self.resetTarget()
-				self.resetRobot(True)
+				self.resetRobot()
 				self.State = []
-				return np.zeros((480, 640, 3),-100,True
+				return np.zeros((480, 640, 3),dtype=np.float32),-100,True
 
 		image = difference
 		self.inSight = False
@@ -219,15 +218,16 @@ class Environment():
 			if l>self.laserData[len(self.laserData)//2]:
 				maximisingDistance = False
 
-		if self.inSight:
+		distance = ((((self.targetPositions[self.targetIndex][0]- self.pos.x )**2) + ((self.targetPositions[self.targetIndex][1]-self.pos.y)**2) )**0.5)
+		if self.inSight and distance<=4:
 			angle = self.getAngleToTarget()
 			angleReward = convertRange(angle,0,90,0,-1) #angle mapped to -1(90 deg) to 1(0deg)
 			distanceReward = convertRange(((((self.targetPositions[self.targetIndex][0]- self.pos.x )**2) + ((self.targetPositions[self.targetIndex][1]-self.pos.y)**2) )**0.5),0,4,0,-1)
 			Reward = (0.5*angleReward)+(0.5*distanceReward)
 			if angle<=self.prevAngle:
 				Reward/=2
-			else:
-				Reward*=2
+			# else:
+			# 	Reward*=2
 			self.prevAngle = abs(angle)
 			return difference,Reward,False
 		elif maximisingDistance:

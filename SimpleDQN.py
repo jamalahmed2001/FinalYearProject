@@ -22,8 +22,8 @@ class NeuralNetwork(nn.Module):
 		self.number_of_actions =5
 		self.gamma = 0.95
 		self.final_epsilon = 0.05 # 0.0001
-		self.initial_epsilon = 0.9 # 0.1
-		self.number_of_iterations = 200#10000
+		self.initial_epsilon = 0.5 # 0.1
+		self.number_of_iterations = 100#10000
 		self.replay_memory_size = 100000000
 		self.minibatch_size = 64
 		#4 frames, 32 chann out,, 8x8kernel, stride 4
@@ -52,7 +52,7 @@ class NeuralNetwork(nn.Module):
 
 def InitialiseWeights(m):
 	if type(m) == nn.Conv2d or type(m) == nn.Linear:
-		torch.nn.init.uniform(m.weight, -0.00, 0.00)
+		torch.nn.init.uniform(m.weight, -0.01, 0.01)
 		m.bias.data.fill_(0.01)
 
 def ImageToTensor(image):
@@ -159,12 +159,18 @@ def train(model, start):
 		# if replay memory is full, remove the oldest transition
 		if len(replay_memory) > model.replay_memory_size:
 			replay_memory.pop(0)
-		# epsilon annealing
+
+
+
+		# epsiodic decay
 		# epsilon = epsilon_decrements[episode]
+
+		#action based decay
 		epsilon*=(0.99)
 		if epsilon<=model.final_epsilon:
 			epsilon = epsilon_decrements[episode]
 
+		#reward based
 		# EPSRatio = abs(CurrentEpisodeReward/(fails*10*PrevEpisodeReward[episode]))
 		# #eps ratio goes negative when prev is positive
 		# # EPSRatio = abs(CurrentEpisodeReward-abs(fails*PrevEpisodeReward[episode])/PrevEpisodeReward[episode]))
@@ -174,6 +180,8 @@ def train(model, start):
 		# 	EPSRatio = abs(CurrentEpisodeReward/(fails*10*PrevEpisodeReward[episode]))
 		# epsilon= convertRange(EPSRatio,0,1,epsilon_decrements[episode],model.final_epsilon)
 		# print("EPSRATIO - ", EPSRatio)
+
+
 
 		CurrentEpisodeReward+=float(reward)
 		print("REWARDS")
@@ -218,6 +226,7 @@ def train(model, start):
 				episode += 1
 				fails = 1
 				epsilon = epsilon_decrements[episode]
+				taken.append(0)
 		#increment actions counter
 		taken[0]+=1
 		taken[episode+1]+=1
@@ -308,19 +317,19 @@ def main(mode):
 	elif mode == "load":
 		models = glob.glob("/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/*.pth")
 		latest = max(models,key=os.path.getctime)
-		# latest = "/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/best-0.9_0.05_0.9_200_1000000_64_160.pth"
+		# latest = "/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/!10x10using4x4modelretrain0.85_0.05_0.5_200_2.5e-05_32_195.pth"
 		print(latest)
 		model = torch.load(
 			latest,
 			map_location='cpu' if not cuda_is_available else None
 		)
 		# model.number_of_actions =5
-		model.gamma = 0.85
+		model.gamma = 0.95
 
-		model.initial_epsilon = 0.8# 0.1
+		model.initial_epsilon = 0.3# 0.1
 		model.final_epsilon = 0.05 # 0.0001
 
-		model.number_of_iterations = 200 #10000
+		model.number_of_iterations = 300 #10000
 		# model.replay_memory_size = 10000000
 		# model.minibatch_size = 64
 

@@ -20,12 +20,12 @@ class NeuralNetwork(nn.Module):
 	def __init__(self):
 		super(NeuralNetwork, self).__init__()
 		self.number_of_actions =5
-		self.gamma = 0.8
+		self.gamma = 0.9
 		self.final_epsilon = 0.01 # 0.0001
-		self.initial_epsilon = 0.7 # 0.1
-		self.number_of_iterations = 50#10000
+		self.initial_epsilon = 0.9 # 0.1
+		self.number_of_iterations = 150#10000
 		self.replay_memory_size = 100000000
-		self.minibatch_size = 16
+		self.minibatch_size = 32
 		#4 frames, 32 chann out,, 8x8kernel, stride 4
 		self.conv1 = nn.Conv2d(4 , 16, 8, 4)
 		self.relu1 = nn.ReLU(inplace=True)
