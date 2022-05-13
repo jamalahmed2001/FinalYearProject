@@ -305,9 +305,11 @@ def main(mode,envmode):
 		start = time.time()
 		train(model, start,envmode)
 	elif mode == "load":
+		#loads latest model
 		models = glob.glob("/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/*.pth")
 		latest = max(models,key=os.path.getctime)
-		latest = "/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/#10x10FinalModel.pth"
+		#loads a specific model comment out if using latest
+		latest = "/home/jamalahmed2001/catkin_ws/src/simulated_homing/src/pretrained_model/#8x8FinalModel.pth"
 		print(latest)
 		model = torch.load(
 			latest,
